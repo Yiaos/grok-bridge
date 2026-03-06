@@ -1,60 +1,64 @@
 ---
 name: grok-bridge
-description: 通过 Safari SuperGrok 网页获得免费 Grok 4 访问（CDP + Peekaboo 自动化）
+description: 通过 Safari JS 注入控制 SuperGrok，将 Grok 变成命令行工具
+version: 2.0.0
 ---
 
-# Grok Bridge
+# Grok Bridge v2
 
-通过 Mac Safari 上已登录的 SuperGrok 网页，将 Grok 变成 REST API。
-原理：VPS → SSH → Mac → Safari CDP/Peekaboo → SuperGrok 网页交互。
+通过 Mac Safari 上已登录的 SuperGrok 网页，将 Grok 变成命令行工具。
+v2 使用 Safari JavaScript 注入（`do JavaScript`），比 v1 的 Peekaboo 方式快 10x。
 
 ## 用法
 
-### 一问一答（Bridge 模式）
 ```bash
+# 一问一答
 bash skills/our/grok-bridge/scripts/grok_chat.sh "你的问题"
-# 或指定模式
-bash skills/our/grok-bridge/scripts/grok_chat.sh "你的问题" --mode expert
+
+# 自定义超时
+bash skills/our/grok-bridge/scripts/grok_chat.sh "深度分析问题" --timeout 120
+
+# 带截图
+bash skills/our/grok-bridge/scripts/grok_chat.sh "问题" --screenshot
 ```
 
-### HTTP API（需先启动服务）
-```bash
-# 在 Mac 上启动 Bridge 服务
-bash skills/our/grok-bridge/scripts/start_bridge.sh
-
-# 调用
-curl -s -X POST http://YOUR_MAC_IP:19998/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"prompt":"你的问题","mode":"auto"}'
-```
-
-## 参数
-- `--mode auto|fast|expert|heavy`：Grok 响应模式（默认 auto）
-- `--beta`：启用 Grok 4.20 Beta
-
-## 前提
-- Mac 在线，Safari 已打开 grok.com 且已登录 SuperGrok
-- Safari 开发者工具已启用（Safari → 设置 → 高级 → 显示"开发"菜单）
-- Safari WebDriver/CDP 或 Peekaboo 可用
-
-## 架构
+## 架构 (v2)
 ```
 VPS (小灵)
-  → SSH → Mac
-    → Safari CDP (localhost:端口) → grok.com 页面
-    → 注入 JS: 填写输入框 → 点击发送 → 等待回复 → 提取文本
-    → 返回结果
+  → SSH root@Mac
+    → osascript → Safari "do JavaScript"
+      → grok.com textarea 注入 + Enter 提交
+      → 轮询 DOM 等待回复完成
+      → 提取回复文本 → stdout
 ```
 
-## 模式说明
-| 模式 | 用途 | 速度 |
-|------|------|------|
-| auto | 自动选择 | 中 |
-| fast | 简单问答 | 快 |
-| expert | 深度分析 | 慢 |
-| heavy | 最强推理 | 最慢 |
+## 前提
+- Mac SSH 可达（root@100.92.28.97）
+- Safari Developer Settings:
+  - ✅ Allow remote automation
+  - ✅ Allow JavaScript from Apple Events
+  - ✅ Allow JavaScript from Smart Search field
+- Safari 已打开 grok.com 且已登录 SuperGrok
+- 不需要 Peekaboo（v2 纯 JS 注入）
+
+## 原理
+1. `osascript` → Safari `do JavaScript` 注入文本到 textarea
+2. 文本通过 base64 编码传输（处理特殊字符）
+3. 模拟 Enter KeyboardEvent 提交
+4. 轮询 DOM 内容，连续 2 次相同则认为回复完成
+5. 提取 `document.body.innerText`，解析出 Grok 的回答
+
+## 与 v1 的区别
+| 特性 | v1 (Peekaboo) | v2 (JS injection) |
+|------|---------------|-------------------|
+| 输入方式 | pbcopy + Cmd+V | JS textarea.value |
+| 提交方式 | Peekaboo press return | JS KeyboardEvent |
+| 提取回复 | 截图 + OCR | DOM innerText |
+| 速度 | ~30s | ~10s |
+| 依赖 | Peekaboo | 仅 osascript |
+| 特殊字符 | base64 + pbcopy | base64 + atob() |
 
 ## 限制
 - 依赖 Safari 登录态（SuperGrok 订阅）
 - 不支持并发（单标签页）
-- 网页 DOM 可能随版本更新变化
+- macOS SSH 不允许 keystroke（System Events），所以用 JS KeyboardEvent
