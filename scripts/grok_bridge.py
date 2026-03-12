@@ -45,13 +45,15 @@ except ImportError as e:
 GROK_URL = 'https://grok.com/'
 VERSION = 'v4-cdp'
 INPUT_SELECTORS = [
-    'textarea',
     'div[contenteditable="true"]',
     '[role="textbox"]',
-    '[data-testid="text-input"]',
     '[data-lexical-editor="true"]',
+    'textarea',
+    '[data-testid="text-input"]',
 ]
 SEND_SELECTORS = [
+    'button[aria-label="提交"]',
+    'button[aria-label*="提交"]',
     'button[aria-label="Send"]',
     'button[aria-label*="Send"]',
     'button[data-testid="send-button"]',
@@ -273,18 +275,26 @@ class GrokBridge:
                 sel.addRange(range);
                 document.execCommand('delete');
                 document.execCommand('insertText', false, text);
+                el.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'insertText', data: text }}));
                 const cur = (el.innerText || el.textContent || '').trim();
                 return cur.includes(text.slice(0, Math.min(20, text.length))) ? 'OK' : 'TYPE_FAIL';
             }}
             if ('value' in el) {{
-                el.value = '';
-                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                el.value = text;
-                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                const proto = Object.getPrototypeOf(el);
+                const desc = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value') || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+                if (desc && desc.set) {{
+                    desc.set.call(el, '');
+                    el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    desc.set.call(el, text);
+                }} else {{
+                    el.value = text;
+                }}
+                el.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'insertText', data: text }}));
+                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 return (el.value || '').includes(text.slice(0, Math.min(20, text.length))) ? 'OK' : 'TYPE_FAIL';
             }}
             el.textContent = text;
-            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            el.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'insertText', data: text }}));
             const cur = (el.innerText || el.textContent || '').trim();
             return cur.includes(text.slice(0, Math.min(20, text.length))) ? 'OK' : 'TYPE_FAIL';
         }})()""")
@@ -301,7 +311,7 @@ class GrokBridge:
                 }}
             }}
             const btns = [...document.querySelectorAll('button')];
-            const textBtn = btns.find(b => !b.disabled && /^(send|发送)$/i.test((b.textContent || b.getAttribute('aria-label') || '').trim()));
+            const textBtn = btns.find(b => !b.disabled && /^(send|发送|提交)$/i.test((b.textContent || b.getAttribute('aria-label') || '').trim()));
             if (textBtn) {{
                 textBtn.click();
                 return 'OK_TEXT';
@@ -332,6 +342,13 @@ class GrokBridge:
 
     def _clean_text(self, text):
         text = (text or '').replace('\r', '')
+        for marker in [
+            '\n自动模式', '\n升级到 SuperGrok', '\nUpgrade to SuperGrok',
+            '\nExplain available tools in detail', '\nDemonstrate code execution tool', '\n想到猎人'
+        ]:
+            i = text.find(marker)
+            if i > 0:
+                text = text[:i]
         text = re.sub(r'\n{3,}', '\n\n', text)
         lines = []
         for raw in text.split('\n'):
@@ -342,7 +359,7 @@ class GrokBridge:
                 continue
             if line in UI_NOISE_LINES:
                 continue
-            if re.fullmatch(r'\d+(\.\d+)?\s*(ms|s)', line, flags=re.I):
+            if re.fullmatch(r'\d+(\.\d+)?\s*(ms|s|秒)', line, flags=re.I):
                 continue
             if re.fullmatch(r'\d+\s+sources?', line, flags=re.I):
                 continue
@@ -380,10 +397,18 @@ class GrokBridge:
         return self._clean_text(after)
 
     def _extract_response(self, messages, body, prompt):
-        msg_resp = self._extract_from_messages(messages, prompt)
+        def normalize(resp):
+            resp = self._clean_text(resp)
+            if prompt and prompt in resp:
+                tail = self._clean_text(resp.split(prompt)[-1])
+                if tail:
+                    return tail
+            return resp
+
+        msg_resp = normalize(self._extract_from_messages(messages, prompt))
         if msg_resp and msg_resp != self._clean_text(prompt):
             return msg_resp
-        return self._extract_from_body(body, prompt)
+        return normalize(self._extract_from_body(body, prompt))
 
     async def _history_async(self):
         async with websockets.connect(self._ws_url(ensure=False), max_size=10 * 1024 * 1024, open_timeout=10) as ws:
