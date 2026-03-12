@@ -24,11 +24,18 @@ This will:
 - start Chrome with `--remote-debugging-port`
 - use a dedicated Chrome profile under `.chrome-profile`
 - start the local bridge on `127.0.0.1:19998`
+- keep tab activation **off by default**, so bridge calls do not intentionally bring the Grok tab to the foreground
 
 ### 2) Login once
 
 A Chrome window will open to `https://grok.com`.
 Login there manually.
+
+If you explicitly want bridge calls to refocus the Grok tab, start with:
+
+```bash
+GROK_ACTIVATE_TAB=1 bash scripts/start_chrome.sh
+```
 
 ### 3) Use the API
 

@@ -6,6 +6,7 @@ BRIDGE_PORT="${GROK_BRIDGE_PORT:-19998}"
 BRIDGE_HOST="${GROK_BRIDGE_BIND_HOST:-127.0.0.1}"
 GROK_CHROME_MODE="${GROK_CHROME_MODE:-hidden}"
 GROK_START_URL="${GROK_START_URL:-https://grok.com}"
+GROK_ACTIVATE_TAB="${GROK_ACTIVATE_TAB:-0}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="$REPO_DIR/.venv"
@@ -93,8 +94,17 @@ if ! curl -fsS "http://127.0.0.1:${CDP_PORT}/json/version" >/dev/null 2>&1; then
   exit 1
 fi
 
+bridge_args=(
+  --host "$BRIDGE_HOST"
+  --port "$BRIDGE_PORT"
+  --cdp-port "$CDP_PORT"
+)
+if [[ "$GROK_ACTIVATE_TAB" == "1" ]]; then
+  bridge_args+=(--activate-tab)
+fi
+
 echo "Starting bridge on ${BRIDGE_HOST}:${BRIDGE_PORT} ..."
-nohup "$PYTHON_BIN" "$SCRIPT_DIR/grok_bridge.py" --host "$BRIDGE_HOST" --port "$BRIDGE_PORT" --cdp-port "$CDP_PORT" \
+nohup "$PYTHON_BIN" "$SCRIPT_DIR/grok_bridge.py" "${bridge_args[@]}" \
   >"$LOG_FILE" 2>&1 &
 
 echo "Bridge PID: $!"
@@ -110,10 +120,12 @@ if curl -fsS "http://${BRIDGE_HOST}:${BRIDGE_PORT}/health" >/dev/null 2>&1; then
       ;;
     hidden)
       echo "Chrome is running hidden with profile: $PROFILE_DIR"
+      echo "Bridge foreground activation: $([[ "$GROK_ACTIVATE_TAB" == "1" ]] && echo on || echo off)"
       echo "Need a visible login/debug session? Run: GROK_CHROME_MODE=windowed bash $REPO_DIR/scripts/start_chrome.sh"
       ;;
     windowed)
       echo "Now login in the Chrome window that opened (profile: $PROFILE_DIR)"
+      echo "Bridge foreground activation: $([[ "$GROK_ACTIVATE_TAB" == "1" ]] && echo on || echo off)"
       ;;
   esac
   echo "Test with:"

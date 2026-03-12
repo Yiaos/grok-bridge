@@ -68,8 +68,9 @@ UI_NOISE_LINES = {
 
 
 class GrokBridge:
-    def __init__(self, cdp_port=9222):
+    def __init__(self, cdp_port=9222, activate_tab=False):
         self.cdp_port = cdp_port
+        self.activate_tab = activate_tab
         self.lock = threading.Lock()
 
     def _http_json(self, path, method='GET', timeout=5):
@@ -142,7 +143,8 @@ class GrokBridge:
             target = self._pick_target()
         if not target:
             raise RuntimeError('no grok.com tab found; start Chrome CDP and login first')
-        self._activate_target(target.get('id'))
+        if self.activate_tab:
+            self._activate_target(target.get('id'))
         ws = target.get('webSocketDebuggerUrl')
         if not ws:
             raise RuntimeError('target missing webSocketDebuggerUrl')
@@ -559,9 +561,18 @@ if __name__ == '__main__':
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=19998)
     parser.add_argument('--cdp-port', type=int, default=9222)
+    parser.add_argument(
+        '--activate-tab',
+        action='store_true',
+        help='Bring the Grok tab to the foreground before interacting (disabled by default).',
+    )
     args = parser.parse_args()
 
-    bridge = GrokBridge(cdp_port=args.cdp_port)
+    bridge = GrokBridge(cdp_port=args.cdp_port, activate_tab=args.activate_tab)
     print(f'Grok Bridge {VERSION} {args.host}:{args.port} (CDP:{args.cdp_port})', flush=True)
-    print('Prereq: Chrome started with --remote-debugging-port and logged into grok.com', flush=True)
+    print(
+        f'Prereq: Chrome started with --remote-debugging-port and logged into grok.com '
+        f'(activate_tab={args.activate_tab})',
+        flush=True,
+    )
     ThreadedHTTPServer((args.host, args.port), Handler).serve_forever()
