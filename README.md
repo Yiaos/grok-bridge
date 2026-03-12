@@ -1,105 +1,79 @@
-# 🌉 grok-bridge v3.0
+# 🌉 grok-bridge v4 (CDP)
 
-Turn **SuperGrok** into a REST API + CLI tool. No API key needed.
+Turn a logged-in **grok.com** Chrome session into a local REST API + CLI tool.
 
 ## How it works
 
-```
-Your Terminal/Script → Safari JS injection → grok.com → Response extracted via DOM
+```text
+Your Terminal/Script -> grok_bridge.py -> Chrome DevTools Protocol -> grok.com tab
 ```
 
-Two modes:
+This version uses **Chrome CDP**, not Safari AppleScript.
 
-### REST API (recommended)
+## Quick Start
+
+### 1) Start Chrome + bridge
+
 ```bash
-# Start the server on your Mac
-python3 scripts/grok_bridge.py --port 19998
+bash scripts/start_chrome.sh
+```
 
-# Query from anywhere
-curl -X POST http://your-mac:19998/chat \
+This will:
+- create a local Python `.venv` if needed
+- install `websockets`
+- start Chrome with `--remote-debugging-port`
+- use a dedicated Chrome profile under `.chrome-profile`
+- start the local bridge on `127.0.0.1:19998`
+
+### 2) Login once
+
+A Chrome window will open to `https://grok.com`.
+Login there manually.
+
+### 3) Use the API
+
+```bash
+curl -X POST http://127.0.0.1:19998/chat \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"What is the mass of the sun?","timeout":60}'
+  -d '{"prompt":"Reply with exactly: OK","timeout":90}'
 
-# Health check
-curl http://your-mac:19998/health
-
-# Read current conversation
-curl http://your-mac:19998/history
+curl http://127.0.0.1:19998/health
+curl http://127.0.0.1:19998/history
+curl -X POST http://127.0.0.1:19998/new
 ```
 
-### CLI (legacy)
+### 4) Use the CLI
+
 ```bash
-# Local
-bash scripts/grok_chat.sh "Explain quantum tunneling"
-
-# Remote via SSH
-MAC_SSH="ssh user@your-mac" bash scripts/grok_chat.sh "Write a haiku" --timeout 90
+bash scripts/grok_chat.sh "Explain quantum tunneling" --timeout 120
 ```
-
-## Requirements
-
-- macOS with Safari
-- Logged into [grok.com](https://grok.com) (free or SuperGrok)
-- Safari > Settings > Advanced > Show features for web developers ✓
-- Safari > Develop > Allow JavaScript from Apple Events ✓
-- **No Accessibility permission needed** (v3 uses JS injection, not System Events)
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/chat` | Send prompt, wait for response |
-| POST | `/new` | Start new conversation |
-| GET | `/health` | Health check (Safari URL, grok status) |
-| GET | `/history` | Read current page conversation |
+- `POST /chat` — send prompt and wait for response
+- `POST /new` — open a new `grok.com` tab
+- `GET /health` — CDP/browser health
+- `GET /history` — current page text + extracted message candidates
 
-## Version History
+## Defaults
 
-| | v1 | v2 | v3 |
-|---|---|---|---|
-| Input | Peekaboo UI | pbcopy + Cmd+V | JS `execCommand('insertText')` |
-| Submit | UI click | System Events Return | JS `button.click()` |
-| Permissions | Peekaboo + Accessibility | Accessibility | **None** (pure JS injection) |
-| Interface | CLI only | CLI only | **REST API** + CLI |
-| Dependencies | Peekaboo (brew) | None | None (stdlib only) |
-| Speed | ~30s | ~3s | ~3s |
+- Bridge bind host: `127.0.0.1`
+- Bridge port: `19998`
+- Chrome CDP port: `9222`
+- Chrome profile dir: `./.chrome-profile`
 
-## Architecture
+## Notes
 
-```
-┌──────────────┐                     ┌───────────────────────┐
-│  HTTP Client │  POST /chat         │      macOS            │
-│  (anywhere)  │ ──────────────────→ │                       │
-└──────────────┘                     │  grok_bridge.py       │
-                                     │  ↓ osascript          │
-                                     │  Safari do JavaScript │
-                                     │  ↓ execCommand        │
-                                     │  grok.com textarea    │
-                                     │  ↓ button.click()     │
-                                     │  Grok responds        │
-                                     │  ↓ DOM poll           │
-                                     │  Response extracted   │
-                                     └───────────────────────┘
-```
+- This is still **web automation**, not an official API.
+- DOM changes on grok.com can break selectors/extraction.
+- Keep it local. Do **not** expose the bridge publicly unless you add your own auth layer.
 
-## Key Insight (v3)
+## Requirements
 
-React controlled inputs ignore JavaScript `value` setter, synthetic `InputEvent`, and even `nativeInputValueSetter`.
-
-What **doesn't** work from SSH:
-- ❌ `osascript keystroke` — blocked by macOS Accessibility
-- ❌ CGEvent (Swift) — HID events don't reach web content
-- ❌ JS `InputEvent` / `nativeInputValueSetter` — React ignores synthetic events
-
-What **does** work:
-- ✅ `document.execCommand('insertText')` — triggers real input in the browser
-- ✅ JS `button.click()` on Send button — no System Events needed
-
-Zero permissions, zero dependencies, pure JavaScript injection via AppleScript.
-
-## Credits
-
-v3 architecture designed by Claude Opus 4.6 (via [Antigravity](https://antigravity.so)), System Events bypass by 小灵 🦞.
+- macOS
+- Google Chrome
+- Python 3.8+
+- `websockets` Python package (auto-installed by `start_chrome.sh`)
 
 ## License
 
