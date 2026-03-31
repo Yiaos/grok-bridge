@@ -22,7 +22,7 @@ Do **not** trigger just because the topic mentions Grok. Trigger when the user w
 ## Workflow
 
 1. Ensure the local bridge is up:
-   - Run `scripts/ensure_bridge.sh`
+   - Run `bash /Users/iaos/.openclaw/workspace/tools/grok-bridge/scripts/ensure_bridge.sh`
 2. If bridge startup/login is needed:
    - Tell the user to log into the Chrome window opened by the bridge
    - Do not guess a Grok answer without actually calling it
@@ -49,7 +49,7 @@ Do **not** trigger just because the topic mentions Grok. Trigger when the user w
 Health:
 
 ```bash
-bash scripts/ensure_bridge.sh
+bash /Users/iaos/.openclaw/workspace/tools/grok-bridge/scripts/ensure_bridge.sh
 ```
 
 Ask Grok:

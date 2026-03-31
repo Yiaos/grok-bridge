@@ -3,8 +3,7 @@ set -euo pipefail
 
 BRIDGE_URL="${GROK_BRIDGE_URL:-http://127.0.0.1:19998}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_DIR="$(cd "$SKILL_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 START_SCRIPT="$REPO_DIR/scripts/start_chrome.sh"
 TMP_HEALTH="/tmp/grok_bridge_skill_health.json"
 TMP_START_LOG="/tmp/grok_bridge_skill_start.log"
