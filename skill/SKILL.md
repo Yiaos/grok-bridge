@@ -21,13 +21,19 @@ Do **not** trigger just because the topic mentions Grok. Trigger when the user w
 
 ## Workflow
 
+先定义工具根目录（可覆盖，避免硬编码绝对路径）：
+
+```bash
+WS="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+```
+
 1. Ensure the local bridge is up:
-   - Run `bash /Users/iaos/.openclaw/workspace/tools/grok-bridge/scripts/ensure_bridge.sh`
+   - Run `bash "$WS/tools/grok-bridge/scripts/ensure_bridge.sh"`
 2. If bridge startup/login is needed:
    - Tell the user to log into the Chrome window opened by the bridge
    - Do not guess a Grok answer without actually calling it
 3. Call Grok:
-   - Run `python3 scripts/ask_grok.py --prompt '<prompt>' --timeout <seconds>`
+   - Run `python3 "$WS/tools/grok-bridge/skill/scripts/ask_grok.py" --prompt '<prompt>' --timeout <seconds>`
 4. Return the result in normal assistant voice
 
 ## Paths
@@ -49,11 +55,13 @@ Do **not** trigger just because the topic mentions Grok. Trigger when the user w
 Health:
 
 ```bash
-bash /Users/iaos/.openclaw/workspace/tools/grok-bridge/scripts/ensure_bridge.sh
+WS="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+bash "$WS/tools/grok-bridge/scripts/ensure_bridge.sh"
 ```
 
 Ask Grok:
 
 ```bash
-python3 scripts/ask_grok.py --prompt "Reply with exactly: OK" --timeout 90
+WS="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+python3 "$WS/tools/grok-bridge/skill/scripts/ask_grok.py" --prompt "Reply with exactly: OK" --timeout 90
 ```
